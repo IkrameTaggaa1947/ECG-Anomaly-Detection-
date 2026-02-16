@@ -1,14 +1,52 @@
-# ECG Anomaly Detection
+﻿# ECG Anomaly Detection
 
-A deep learning system for ECG classification and cardiac anomaly detection using the PTB-XL dataset, with a multilingual web application for clinical use.
+## Table of Contents
 
-## Performance
+- [Project Overview](#project-overview)
+- [Dataset](#dataset)
+- [Classification Classes](#classification-classes)
+- [Architecture](#architecture)
+- [Model Specifications](#model-specifications)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Pipeline Overview](#pipeline-overview)
+- [Exploratory Data Analysis (EDA)](#exploratory-data-analysis-eda)
+- [Web Application Features](#web-application-features)
+- [API Endpoints](#api-endpoints)
+- [Tech Stack](#tech-stack)
+- [Environment Variables](#environment-variables)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
-| Metric | Value |
-|--------|-------|
-| **AUC Macro** | 91.98% |
-| **Dataset** | PTB-XL (21,481 ECG recordings) |
-| **Classes** | 5 cardiac conditions |
+---
+
+## Project Overview
+
+This project implements a **Wide+Deep neural network** for ECG anomaly detection using the PTB-XL dataset (21,481 recordings). It classifies ECG signals into 5 cardiac conditions and includes a multilingual web application for clinical use, featuring real-time predictions and a Groq-powered cardiology chatbot.
+
+**Key Features:**
+
+- ECG signal preprocessing using NeuroKit2
+- Multi-lead (12-lead) ECG analysis
+- Wide+Deep architecture combining CNN, Transformer, and handcrafted features
+- NLP analysis of clinical text reports (XLM-RoBERTa)
+- Multilingual chatbot (English, French, Arabic)
+- Full-stack application with React.js frontend and FastAPI backend
+
+---
+
+## Dataset
+
+**PTB-XL**: Public 12-lead ECG dataset
+
+| Property | Value |
+|----------|-------|
+| Records | 21,481 ECG recordings |
+| Duration | 10 seconds per recording |
+| Sampling Rate | 100 Hz (used), 500 Hz available |
+| Annotations | SCP-ECG standard codes |
+
+---
 
 ## Classification Classes
 
@@ -20,29 +58,59 @@ A deep learning system for ECG classification and cardiac anomaly detection usin
 | CD | Conduction Disorders |
 | HYP | Hypertrophy |
 
-## Project Structure
+---
+
+## Architecture
+
+### Wide+Deep Neural Network
 
 ```
-ECG-Anomaly-Detection/
-├── ECG_Analytics-main/           # Research & Model Development
-│   ├── EDA.ipynb                 # Exploratory Data Analysis
-│   ├── ECG_deep_learning_pipeline.ipynb    # Wide+Deep model training
-│   ├── ECG_machine_learning_based_pipline.ipynb  # ML baselines
-│   ├── ECG_NLP_Notebook.ipynb    # NLP text classification
-│   └── NLP_EDA.ipynb             # Multilingual text analysis
-│
-└── ECG_Analytics_app-main/       # Web Application
-    ├── client-ecg/
-    │   ├── src/
-    │   │   ├── App.js            # React frontend
-    │   │   ├── main.py           # FastAPI server
-    │   │   ├── app.py            # ECG prediction API
-    │   │   ├── chatbot.py        # Multilingual chatbot
-    │   │   └── model/            # Trained model weights
-    │   └── public/
-    ├── app run.bat               # Start backend
-    └── app run 2.bat             # Start frontend
++-------------------------------------------------------------+
+|             INPUT: ECG Signal (12 leads x 1000 samples)     |
++-------------------------------------------------------------+
+                              |
+        +---------------------+---------------------+
+        |                                           |
+        v                                           v
++-----------------------+               +-----------------------+
+|      DEEP PATH        |               |      WIDE PATH        |
++-----------------------+               +-----------------------+
+| CNN (6 blocks):       |               | 32 Handcrafted        |
+| Conv1D -> BN -> ReLU  |               | Features:             |
+| -> MaxPool            |               | - Heart Rate          |
+| Transformer:          |               | - RR Intervals        |
+| 8 layers, 8 heads     |               | - Lead Statistics     |
+| Output: 64 features   |               |   (mean, std, range)  |
++-----------------------+               +-----------------------+
+        |                                           |
+        +---------------------+---------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|                      FUSION LAYER                           |
+|         Concat(64 + 32) -> FC(128) -> FC(64) -> FC(5)       |
++-------------------------------------------------------------+
+                              |
+                              v
++-------------------------------------------------------------+
+|          OUTPUT: 5 Probabilities [NORM, MI, STTC, CD, HYP]  |
++-------------------------------------------------------------+
 ```
+
+---
+
+## Model Specifications
+
+| Component | Details |
+|-----------|---------|
+| Total Parameters | 11.5M |
+| CNN Channels | 12 -> 64 -> 128 -> 256 -> 512 |
+| Transformer | d_model=256, nhead=8, num_layers=8 |
+| Wide Features | 32 (extracted via NeuroKit2) |
+| Loss | Cross-entropy with label smoothing |
+| Optimizer | AdamW with cosine annealing |
+
+---
 
 ## Installation
 
@@ -58,29 +126,7 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-### requirements.txt
-
-```
-torch>=2.0.0
-numpy>=1.24.0
-pandas>=2.0.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-neurokit2>=0.2.0
-wfdb>=4.1.0
-scipy>=1.10.0
-scikit-learn>=1.2.0
-transformers>=4.30.0
-fastapi>=0.100.0
-uvicorn>=0.22.0
-python-dotenv>=1.0.0
-groq>=0.4.0
-axios
-```
-
 ### GPU Support (Recommended)
-
-The Wide+Deep model (11.5M parameters) benefits from GPU acceleration:
 
 ```bash
 # CUDA 11.8
@@ -90,17 +136,19 @@ pip install torch --index-url https://download.pytorch.org/whl/cu118
 pip install torch --index-url https://download.pytorch.org/whl/cu121
 ```
 
+---
+
 ## Quick Start
 
 ### Run Web Application
 
 ```bash
-# Terminal 1: Start FastAPI backend
+# Backend (FastAPI)
 cd ECG_Analytics_app-main
 app run.bat
 # Or manually: uvicorn client-ecg.src.main:app --reload --port 8000
 
-# Terminal 2: Start React frontend
+# Frontend (React)
 app run 2.bat
 # Or manually: cd client-ecg && npm start
 ```
@@ -118,51 +166,7 @@ jupyter notebook
 # 2. ECG_deep_learning_pipeline.ipynb - Model training
 ```
 
-## Model Architecture
-
-### Wide+Deep Neural Network
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                INPUT: ECG Signal (12 leads x 1000 samples)  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-        ┌─────────────────────┴─────────────────────┐
-        │                                           │
-        ▼                                           ▼
-┌───────────────────────┐               ┌───────────────────────┐
-│      DEEP PATH        │               │      WIDE PATH        │
-├───────────────────────┤               ├───────────────────────┤
-│ CNN (6 blocks):       │               │ 32 Handcrafted        │
-│ Conv1D → BN → ReLU    │               │ Features:             │
-│ → MaxPool             │               │ • Heart Rate          │
-│                       │               │ • RR Intervals        │
-│ Transformer:          │               │ • Lead Statistics     │
-│ 8 layers, 8 heads     │               │   (mean, std, range)  │
-│                       │               │                       │
-│ Output: 64 features   │               │ Output: 32 features   │
-└───────────────────────┘               └───────────────────────┘
-        │                                           │
-        └─────────────────────┬─────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      FUSION LAYER                           │
-│         Concat(64 + 32) → FC(128) → FC(64) → FC(5)          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│          OUTPUT: 5 Probabilities [NORM, MI, STTC, CD, HYP]  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Model Parameters
-
-- **Total Parameters**: 11.5M
-- **CNN Channels**: 12 → 64 → 128 → 256 → 512
-- **Transformer**: d_model=256, nhead=8, num_layers=8
-- **Wide Features**: 32 (extracted via NeuroKit2)
+---
 
 ## Pipeline Overview
 
@@ -174,18 +178,20 @@ jupyter notebook
 | NLP | `ECG_NLP_Notebook.ipynb` | XLM-RoBERTa for clinical text |
 | Text Analysis | `NLP_EDA.ipynb` | Multilingual analysis, leakage detection |
 
-## Exploratory Data Analysis
+---
 
-### EDA Components
+## Exploratory Data Analysis (EDA)
 
 | Analysis | Description |
 |----------|-------------|
-| **Demographics** | Age distribution, sex ratio |
-| **Temporal** | Recording date patterns |
-| **Quality** | Signal quality scores |
-| **Dependencies** | Age/Sex vs SCP codes |
-| **Correlations** | Features vs disease superclasses |
-| **NLP** | Multilingual text (German/English), class imbalance |
+| Demographics | Age distribution, sex ratio |
+| Temporal | Recording date patterns |
+| Quality | Signal quality scores |
+| Dependencies | Age/Sex vs SCP codes |
+| Correlations | Features vs disease superclasses |
+| NLP | Multilingual text (German/English), class imbalance |
+
+---
 
 ## Web Application Features
 
@@ -202,6 +208,8 @@ jupyter notebook
 - **Categories**: Arrhythmias, Ischemia, Symptoms, Risk Factors
 - **Powered by**: Groq LLM API
 
+---
+
 ## API Endpoints
 
 ```
@@ -214,56 +222,19 @@ POST /chatbot/chat
   - Returns: AI cardiology assistant response
 ```
 
-## Usage Example
-
-### Python Prediction
-
-```python
-import torch
-from model import WideDeepModel
-
-# Load model
-model = WideDeepModel(num_wide_features=32, num_classes=5)
-model.load_state_dict(torch.load('model_wide_deep_pure_FIXED.pth'))
-model.eval()
-
-# Predict
-with torch.no_grad():
-    logits = model(signal_tensor, wide_features_tensor)
-    probs = torch.sigmoid(logits)
-    
-# Classes: ['NORM', 'MI', 'STTC', 'CD', 'HYP']
-```
-
-### API Request
-
-```bash
-curl -X POST "http://localhost:8000/ecg/predict" \
-  -F "first_name=John" \
-  -F "last_name=Doe" \
-  -F "age=55" \
-  -F "sex=M" \
-  -F "dat_file=@ecg_record.dat" \
-  -F "hea_file=@ecg_record.hea"
-```
-
-## Dataset
-
-**PTB-XL**: Publicly available ECG dataset
-- **Records**: 21,481 clinical 12-lead ECGs
-- **Duration**: 10 seconds per recording
-- **Sampling Rate**: 100 Hz (used) / 500 Hz (available)
-- **Annotations**: SCP-ECG standard codes
+---
 
 ## Tech Stack
 
 | Layer | Technologies |
 |-------|-------------|
-| **ML/DL** | PyTorch, scikit-learn, NeuroKit2 |
-| **NLP** | Transformers (XLM-RoBERTa), Groq |
-| **Backend** | FastAPI, Uvicorn |
-| **Frontend** | React.js, Axios |
-| **Data** | WFDB, Pandas, NumPy |
+| ML/DL | PyTorch, scikit-learn, NeuroKit2 |
+| NLP | Transformers (XLM-RoBERTa), Groq |
+| Backend | FastAPI, Uvicorn |
+| Frontend | React.js, Axios |
+| Data | WFDB, Pandas, NumPy |
+
+---
 
 ## Environment Variables
 
@@ -273,9 +244,13 @@ Create `.env` file in `client-ecg/src/`:
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
+---
+
 ## License
 
-This project uses the PTB-XL dataset which is publicly available under the Open Data Commons Attribution License.
+This project uses the PTB-XL dataset, publicly available under the Open Data Commons Attribution License.
+
+---
 
 ## Acknowledgments
 
